@@ -16,17 +16,13 @@
 import os
 import logging
 
-import tensorflow as tf
-
 from tensorforce.agents import Agent
 from tensorforce.environments import Environment
 from tensorforce.execution import Runner
 import cenv
 from tsim import gameSim
+from tensorforce import Runner
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-logger = tf.get_logger()
-logger.setLevel(logging.ERROR)
 
 # Create an OpenAI-Gym environment
 environment = Environment.create(
@@ -35,27 +31,44 @@ environment = Environment.create(
 
 # Create a PPO agent
 agent = Agent.create(
-    agent='ppo', environment=environment,
+    agent='ppo',
+    environment=environment,
     # Automatically configured network
     network='auto',
-    # Optimization
-    batch_size=10, update_frequency=2, learning_rate=1e-3, subsampling_fraction=0.2,
-    optimization_steps=5,
-    preprocessing=None,
-    # Exploration
-    exploration=0.1, variable_noise=0.0,
+    # PPO optimization parameters
+    batch_size=10, update_frequency=2, learning_rate=3e-4, multi_step=10,
+    subsampling_fraction=0.33,
+    # Reward estimation
+    likelihood_ratio_clipping=0.2, discount=0.99, predict_terminal_values=False,
+    # Baseline network and optimizer
+    baseline=dict(type='auto', size=32, depth=1),
+    baseline_optimizer=dict(optimizer='adam', learning_rate=1e-3, multi_step=10),
     # Regularization
     l2_regularization=0.0, entropy_regularization=0.0,
-    # TensorFlow etc
-    name='agent', device=None, parallel_interactions=1, seed=None, execution=None, saver=None,
-    summarizer=None, recorder=None
+    # Preprocessing
+    state_preprocessing='linear_normalization', reward_preprocessing=None,
+    # Exploration
+    exploration=0.0, variable_noise=0.0,
+    # Default additional config values
+    config=None,
+    parallel_interactions=1,
+    # Save agent every 10 updates and keep the 5 most recent checkpoints
+    saver=dict(directory='model', frequency=10, max_checkpoints=5),
+    # Log all available Tensorboard summaries
+    summarizer=dict(directory='summaries', summaries='all'),
+    # Do not record agent-environment interaction trace
+    recorder=None
 )
+
 # Initialize the runner
 runner = Runner(agent=agent, environment=environment)
 
 # Start the runner
 runner.run(num_episodes=10000)
 runner.close()
+agent.save(directory='.', format='numpy', append='episodes')
+exit()
+
 
 gsim = gameSim()
 for i in range(50):
